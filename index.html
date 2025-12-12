@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ぷにぷに落下ゲーム</title>
+  <style>
+    :root{
+      --sidebar-w: 260px;
+      --bg0:#070912;
+      --bg1:#0b1020;
+      --panel: rgba(255,255,255,.08);
+      --panel2: rgba(255,255,255,.12);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.66);
+      --accent:#7bdcff;
+      --accent2:#ff7bdc;
+      --shadow: rgba(0,0,0,.35);
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; margin:0; overflow:hidden; font-family: ui-sans-serif, system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Segoe UI", Arial; color:var(--text);
+      background: radial-gradient(1200px 900px at 18% 8%, #2a3bd6 0%, var(--bg1) 38%, var(--bg0) 100%);
+    }
+
+    .app{ height:100%; display:flex; }
+
+    /* Sidebar */
+    aside{
+      width: var(--sidebar-w);
+      min-width: var(--sidebar-w);
+      max-width: var(--sidebar-w);
+      padding: 14px 12px;
+      background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.04));
+      border-right: 1px solid rgba(255,255,255,.10);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      overflow:auto;
+    }
+    .brand{ display:flex; align-items:center; gap:10px; padding: 8px 8px 12px; }
+    .logo{ width:36px; height:36px; border-radius: 14px; background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 12px 36px var(--shadow); }
+    .brand h1{ margin:0; font-size: 14px; line-height:1.2; }
+    .brand p{ margin:2px 0 0; font-size:12px; color:var(--muted); }
+
+    .group{ margin-top: 10px; padding: 10px 8px; border-radius: 14px; background: rgba(0,0,0,.18); border: 1px solid rgba(255,255,255,.08); }
+    .group-title{ margin:0 0 8px; font-size:12px; letter-spacing:.08em; color: rgba(255,255,255,.78); display:flex; align-items:center; gap:8px; }
+    .pill{ display:inline-block; padding: 2px 8px; border-radius: 999px; font-size:11px; color: rgba(255,255,255,.72);
+      background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.10);
+    }
+
+    .char-btn{
+      width:100%;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding: 8px 10px;
+      margin: 6px 0;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      cursor:pointer;
+      user-select:none;
+      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+      box-shadow: 0 10px 30px rgba(0,0,0,.10);
+    }
+    .char-btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.16); }
+    .char-btn[aria-pressed="true"]{ background: rgba(123,220,255,.14); border-color: rgba(123,220,255,.45); box-shadow: 0 14px 40px rgba(123,220,255,.12); }
+
+    .thumb{ width: 36px; height:36px; border-radius: 12px; overflow:hidden; border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.18); display:grid; place-items:center; flex: 0 0 auto; }
+    .thumb img{ width:100%; height:100%; object-fit:cover; }
+    .char-name{ font-size:14px; font-weight:800; letter-spacing:.02em; }
+
+    .hint{ margin-top: 10px; padding: 10px 10px; border-radius: 14px; background: rgba(0,0,0,.18); border: 1px solid rgba(255,255,255,.08);
+      color: rgba(255,255,255,.78); font-size:12px; line-height:1.55;
+    }
+
+    /* Main */
+    main{ position:relative; flex:1; overflow:hidden; }
+    canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+
+    #hud{ position:absolute; left:16px; right:16px; top:14px; display:flex; justify-content:space-between; align-items:center; gap:10px; z-index:3; pointer-events:none; }
+    .hud-card{ display:inline-flex; align-items:center; gap:10px; padding: 10px 12px; border-radius: 14px;
+      background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.10);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 18px 60px rgba(0,0,0,.20);
+    }
+    .hud-title{ font-size:12px; color: rgba(255,255,255,.75); letter-spacing:.08em; }
+    .hud-value{ font-size:18px; font-weight:900; }
+    .tiny{ font-size:12px; color: rgba(255,255,255,.70); }
+
+    .footer{ position:absolute; left:16px; bottom:12px; z-index:2; color: rgba(255,255,255,.60); font-size:12px; pointer-events:none; text-shadow: 0 2px 10px rgba(0,0,0,.35); }
+
+    /* Mobile */
+    #toggleSidebar{ display:none; }
+    @media (max-width: 640px){
+      #toggleSidebar{
+        display:block;
+        position:absolute;
+        left:12px;
+        top:12px;
+        z-index: 12;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,.14);
+        background: rgba(0,0,0,.24);
+        color: var(--text);
+        padding: 10px 12px;
+        cursor:pointer;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        box-shadow: 0 20px 70px rgba(0,0,0,.30);
+      }
+      #toggleSidebar:active{ transform: translateY(1px); }
+
+      aside{
+        position:absolute;
+        left:12px;
+        top:60px;
+        bottom:12px;
+        width: min(72vw, 280px);
+        min-width: 0;
+        max-width: min(72vw, 280px);
+        border-radius: 18px;
+        border: 1px solid rgba(255,255,255,.12);
+        box-shadow: 0 25px 80px rgba(0,0,0,.35);
+        z-index: 11;
+        transform: translateX(-110%);
+        transition: transform 160ms ease;
+      }
+      aside.open{ transform: translateX(0%); }
+
+      #hud{ left:12px; right:12px; top:64px; }
+      .footer{ left:12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <button id="toggleSidebar" type="button">キャラ</button>
+
+    <aside id="sidebar" aria-label="キャラクター選択">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>ぷにぷに落下ゲーム</h1>
+          <p>クリック/タップで浮かす</p>
+        </div>
+      </div>
+
+      <div id="charList"></div>
+
+      <div class="hint">
+        ・上からぷにぷにが落ちてきます<br />
+        ・当てたぷにぷにをクリック/タップすると「ふわっ」と浮きます<br />
+        ・左の一覧でキャラクターを切り替えできます
+      </div>
+    </aside>
+
+    <main>
+      <div id="hud">
+        <div class="hud-card">
+          <div>
+            <div class="hud-title">SCORE</div>
+            <div class="hud-value" id="score">0</div>
+          </div>
+          <div class="tiny" id="combo">COMBO —</div>
+          <div class="tiny" id="misses">MISS 0</div>
+        </div>
+        <div class="hud-card">
+          <div>
+            <div class="hud-title">SELECT</div>
+            <div class="hud-value" id="selectedName">アルカ</div>
+          </div>
+        </div>
+      </div>
+
+      <canvas id="game"></canvas>
+      <div class="footer">画像ファイル（.png）はこの index.html と同じフォルダに置いてね</div>
+    </main>
+  </div>
+
+<script>
+(() => {
+  // ===== キャラクター定義（画像は index.html と同じフォルダに置く） =====
+  const CHAR_CATALOG = [
+    { group: '五天', name: 'アルカ',     file: 'アルカ.png' },
+    { group: '五天', name: 'キルロード', file: 'キルロード.png' },
+    { group: '五天', name: 'キュビ',     file: 'キュビ.png' },
+    { group: '五天', name: 'コト',       file: 'コト.png' },
+    { group: '五天', name: 'アーシャ',   file: 'アーシャ.png' },
+    { group: 'カラベイ', name: 'タネイ', file: 'タネイ.png' },
+    { group: 'カラベイ', name: 'アカウ', file: 'アカウ.png' },
+    { group: 'カラベイ', name: 'カレイ', file: 'カレイ.png' },
+  ];
+
+  // ===== UI =====
+  const sidebar = document.getElementById('sidebar');
+  const toggleSidebarBtn = document.getElementById('toggleSidebar');
+  const charListEl = document.getElementById('charList');
+  const scoreEl = document.getElementById('score');
+  const comboEl = document.getElementById('combo');
+  const missesEl = document.getElementById('misses');
+  const selectedNameEl = document.getElementById('selectedName');
+
+  toggleSidebarBtn.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+  });
+
+  // ===== 画像プリロード =====
+  const images = new Map();
+  function loadImage(file){
+    if(images.has(file)) return images.get(file);
+    const img = new Image();
+    // 日本語ファイル名でも通るけど、念のためURLエンコード
+    img.src = encodeURI('./' + file);
+    img.decoding = 'async';
+    images.set(file, img);
+    return img;
+  }
+
+  // サイドバー生成
+  const groups = Array.from(new Set(CHAR_CATALOG.map(c => c.group)));
+  let activeChar = CHAR_CATALOG[0];
+
+  function buildSidebar(){
+    charListEl.innerHTML = '';
+    for(const g of groups){
+      const wrap = document.createElement('div');
+      wrap.className = 'group';
+
+      const title = document.createElement('div');
+      title.className = 'group-title';
+      title.innerHTML = `<span class="pill">${g}</span><span>キャラクター</span>`;
+      wrap.appendChild(title);
+
+      for(const c of CHAR_CATALOG.filter(x => x.group === g)){
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'char-btn';
+        btn.setAttribute('aria-pressed', String(c.name === activeChar.name));
+
+        const thumb = document.createElement('div');
+        thumb.className = 'thumb';
+        const img = loadImage(c.file);
+        const imgEl = document.createElement('img');
+        imgEl.alt = c.name;
+        imgEl.src = img.src;
+        thumb.appendChild(imgEl);
+
+        const name = document.createElement('div');
+        name.className = 'char-name';
+        name.textContent = c.name;
+
+        btn.appendChild(thumb);
+        btn.appendChild(name);
+
+        btn.addEventListener('click', () => {
+          activeChar = c;
+          selectedNameEl.textContent = c.name;
+          // 押下状態更新
+          for(const b of charListEl.querySelectorAll('.char-btn')) b.setAttribute('aria-pressed','false');
+          btn.setAttribute('aria-pressed','true');
+          // モバイルで閉じる
+          sidebar.classList.remove('open');
+        });
+
+        wrap.appendChild(btn);
+      }
+
+      charListEl.appendChild(wrap);
+    }
+  }
+  buildSidebar();
+
+  // ===== ゲーム描画（Canvas） =====
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d', { alpha: true });
+
+  let W = 0, H = 0, DPR = 1;
+  function resize(){
+    DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    W = canvas.clientWidth;
+    H = canvas.clientHeight;
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  new ResizeObserver(resize).observe(canvas);
+  window.addEventListener('resize', resize, { passive:true });
+  resize();
+
+  // ===== ぷにぷに（物体） =====
+  const blobs = [];
+  const particles = [];
+
+  const rng = (a,b) => a + Math.random() * (b-a);
+
+  let score = 0;
+  let combo = 0;
+  let misses = 0;
+
+  function setScore(delta){
+    score += delta;
+    scoreEl.textContent = String(score);
+  }
+  function setCombo(v){
+    combo = v;
+    comboEl.textContent = `COMBO ${combo || '—'}`;
+  }
+  function setMisses(v){
+    misses = v;
+    missesEl.textContent = `MISS ${misses}`;
+  }
+
+  function spawnBlob(){
+    const baseR = Math.min(W, H) * rng(0.045, 0.070);
+    const r = Math.max(22, Math.min(64, baseR));
+    const x = rng(r, W - r);
+    const y = -r - rng(0, 120);
+    const vx = rng(-40, 40);
+    const vy = rng(60, 140);
+    const w = rng(-0.8, 0.8);
+
+    const file = activeChar.file;
+    const img = loadImage(file);
+
+    blobs.push({
+      x, y, vx, vy, r,
+      rot: rng(-0.4, 0.4),
+      w,
+      born: performance.now(),
+      img,
+      name: activeChar.name,
+      floatFlash: 0,
+    });
+  }
+
+  // ===== パーティクル =====
+  function burst(x,y, n=14){
+    for(let i=0;i<n;i++){
+      particles.push({
+        x, y,
+        vx: rng(-160,160),
+        vy: rng(-220,60),
+        life: rng(0.35, 0.75),
+        t: 0,
+        s: rng(1.2, 2.2),
+      });
+    }
+  }
+
+  // ===== 入力（クリック/タップ） =====
+  function pointerToCanvas(e){
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left);
+    const y = (e.clientY - rect.top);
+    return { x, y };
+  }
+
+  function tryHit(px, py){
+    // 手前（後に描画される＝配列末尾）から当たり判定
+    for(let i = blobs.length - 1; i >= 0; i--){
+      const b = blobs[i];
+      const dx = px - b.x;
+      const dy = py - b.y;
+      if(dx*dx + dy*dy <= b.r*b.r){
+        // 浮かす（上方向インパルス）
+        b.vy = -Math.min(900, 420 + Math.abs(b.vy) * 0.7);
+        b.vx += rng(-120, 120);
+        b.rot += rng(-0.35, 0.35);
+        b.floatFlash = 0.35;
+
+        // スコア
+        setCombo(Math.min(999, combo + 1));
+        const add = Math.floor(10 + (b.r - 22) * 0.7 + combo * 2);
+        setScore(add);
+        burst(b.x, b.y, 12);
+        return true;
+      }
+    }
+    // 空振りはコンボリセット（気持ちよさ優先）
+    setCombo(0);
+    return false;
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.setPointerCapture?.(e.pointerId);
+    const { x, y } = pointerToCanvas(e);
+    tryHit(x, y);
+  }, { passive:true });
+
+  // ===== 背景（星っぽい点） =====
+  const stars = Array.from({length: 90}, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    r: rng(0.6, 1.8),
+    a: rng(0.12, 0.40),
+    s: rng(6, 24),
+  }));
+
+  function drawBackground(t){
+    // うっすらグラデ
+    const g = ctx.createRadialGradient(W*0.18, H*0.10, 10, W*0.18, H*0.10, Math.max(W,H));
+    g.addColorStop(0, 'rgba(123,220,255,0.10)');
+    g.addColorStop(0.45, 'rgba(255,123,220,0.04)');
+    g.addColorStop(1, 'rgba(0,0,0,0.25)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,W,H);
+
+    // 星
+    for(const s of stars){
+      const tw = 0.5 + 0.5*Math.sin((t/1000) * (1.1 + s.s/18) + (s.x+s.y)*9);
+      ctx.globalAlpha = s.a * (0.7 + 0.6*tw);
+      ctx.beginPath();
+      ctx.arc(s.x*W, s.y*H, s.r, 0, Math.PI*2);
+      ctx.fillStyle = 'white';
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ===== ループ =====
+  let last = performance.now();
+  let spawnAcc = 0;
+
+  function step(now){
+    const dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+
+    // 難易度（時間で少しだけ増える）
+    const elapsed = now / 1000;
+    const spawnEvery = Math.max(0.28, 0.85 - elapsed * 0.010);
+    spawnAcc += dt;
+    while(spawnAcc >= spawnEvery){
+      spawnAcc -= spawnEvery;
+      spawnBlob();
+      if(Math.random() < 0.18) spawnBlob();
+    }
+
+    // 物理
+    const g = 1400; // 重力
+    const drag = 0.995;
+    const bounce = 0.35;
+
+    for(let i=blobs.length-1;i>=0;i--){
+      const b = blobs[i];
+      b.vy += g * dt;
+      b.vx *= Math.pow(drag, dt*60);
+      b.vy *= Math.pow(drag, dt*60);
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.rot += b.w * dt;
+
+      // 壁
+      if(b.x - b.r < 0){ b.x = b.r; b.vx = Math.abs(b.vx) * (0.55); }
+      if(b.x + b.r > W){ b.x = W - b.r; b.vx = -Math.abs(b.vx) * (0.55); }
+
+      // 下に落ちたらミス扱いで消す
+      if(b.y - b.r > H + 120){
+        blobs.splice(i,1);
+        setMisses(misses + 1);
+        setCombo(0);
+        continue;
+      }
+
+      // ふわっと演出の減衰
+      b.floatFlash = Math.max(0, b.floatFlash - dt);
+
+      // 画面下で軽く反発（消える前の“ぷにっ”感）
+      const floorY = H - 6;
+      if(b.y + b.r > floorY){
+        b.y = floorY - b.r;
+        if(b.vy > 0) b.vy = -b.vy * bounce;
+      }
+    }
+
+    // パーティクル
+    for(let i=particles.length-1;i>=0;i--){
+      const p = particles[i];
+      p.t += dt;
+      p.vy += 900 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if(p.t >= p.life) particles.splice(i,1);
+    }
+
+    // 描画
+    ctx.clearRect(0,0,W,H);
+    drawBackground(now);
+
+    // 影
+    for(const b of blobs){
+      const sh = Math.max(0.08, 0.22 - Math.max(0, (b.y/H)) * 0.10);
+      ctx.globalAlpha = sh;
+      ctx.beginPath();
+      ctx.ellipse(b.x, Math.min(H-4, b.y + b.r*0.92), b.r*0.85, b.r*0.30, 0, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // ぷにぷに本体
+    for(const b of blobs){
+      const speed = Math.min(1400, Math.abs(b.vy));
+      const squash = Math.max(-0.28, Math.min(0.28, (b.vy/1400) * 0.22));
+      const wobble = 0.05 * Math.sin((now - b.born) / 120 + b.r);
+
+      const sx = 1 - squash + wobble;
+      const sy = 1 + squash - wobble;
+
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(b.rot * 0.25);
+      ctx.scale(sx, sy);
+
+      // ふわっ（クリック時）グロー
+      if(b.floatFlash > 0){
+        ctx.globalAlpha = Math.min(0.45, b.floatFlash);
+        ctx.beginPath();
+        ctx.arc(0, 0, b.r*1.20, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(123,220,255,0.35)';
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      if(b.img && b.img.complete && b.img.naturalWidth > 0){
+        ctx.drawImage(b.img, -b.r, -b.r, b.r*2, b.r*2);
+      }else{
+        // 画像が読み込めない時の保険
+        ctx.beginPath();
+        ctx.arc(0,0,b.r,0,Math.PI*2);
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.font = 'bold 14px ui-sans-serif, system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(b.name, 0, 0);
+      }
+
+      ctx.restore();
+    }
+
+    // パーティクル描画
+    for(const p of particles){
+      const a = 1 - (p.t / p.life);
+      ctx.globalAlpha = a;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.s, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    requestAnimationFrame(step);
+  }
+
+  requestAnimationFrame(step);
+})();
+</script>
+</body>
+</html>
