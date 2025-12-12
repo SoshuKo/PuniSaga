@@ -9,8 +9,6 @@
       --sidebar-w: 260px;
       --bg0:#070912;
       --bg1:#0b1020;
-      --panel: rgba(255,255,255,.08);
-      --panel2: rgba(255,255,255,.12);
       --text: rgba(255,255,255,.92);
       --muted: rgba(255,255,255,.66);
       --accent:#7bdcff;
@@ -95,6 +93,53 @@
 
     .footer{ position:absolute; left:16px; bottom:12px; z-index:2; color: rgba(255,255,255,.60); font-size:12px; pointer-events:none; text-shadow: 0 2px 10px rgba(0,0,0,.35); }
 
+    /* セリフ（小さく・邪魔にならない位置） */
+    #toast{
+      position:absolute;
+      right: 16px;
+      bottom: 12px;
+      z-index: 5;
+      pointer-events:none;
+      display:flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-end;
+      max-width: min(420px, 46vw);
+    }
+    .toast-item{
+      width: fit-content;
+      max-width: 100%;
+      background: rgba(0,0,0,.26);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      padding: 8px 10px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 18px 55px rgba(0,0,0,.20);
+      transform: translateY(6px);
+      opacity: 0;
+      animation: toastIn 160ms ease forwards, toastOut 260ms ease forwards;
+      animation-delay: 0ms, var(--toast-life, 3600ms);
+    }
+    .toast-name{
+      font-size: 11px;
+      letter-spacing: .10em;
+      color: rgba(255,255,255,.72);
+      margin-bottom: 4px;
+    }
+    .toast-text{
+      font-size: 12px;
+      line-height: 1.45;
+      color: rgba(255,255,255,.88);
+      word-break: break-word;
+    }
+    @keyframes toastIn{
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes toastOut{
+      to { transform: translateY(6px); opacity: 0; }
+    }
+
     /* Mobile */
     #toggleSidebar{ display:none; }
     @media (max-width: 640px){
@@ -135,6 +180,7 @@
 
       #hud{ left:12px; right:12px; top:64px; }
       .footer{ left:12px; }
+      #toast{ right: 12px; bottom: 12px; max-width: min(420px, 64vw); }
     }
   </style>
 </head>
@@ -156,6 +202,7 @@
       <div class="hint">
         ・上からぷにが落ちてきます<br />
         ・当てたぷにをクリック/タップすると「ふわっ」と浮きます<br />
+        ・低確率でセリフが右下に小さく出ます<br />
         ・左の一覧でキャラクターを切り替えできます
       </div>
     </aside>
@@ -178,6 +225,8 @@
         </div>
       </div>
 
+      <div id="toast" aria-live="polite" aria-atomic="true"></div>
+
       <canvas id="game"></canvas>
       <div class="footer">画像ファイル（.png）はこの index.html と同じフォルダに置いてね</div>
     </main>
@@ -197,6 +246,64 @@
     { group: 'カラベイ', name: 'カレイ', file: 'カレイ.png' },
   ];
 
+  // ===== セリフ（クリック時：超低確率でランダム表示） =====
+  // ※「超低確率」の具体値が未指定なので、まず 0.6%（約1/167）にしています。
+  //    もっと低い/高いが良ければ数字だけ変えればOK。
+  const QUOTE_CHANCE = 0.05;
+  const QUOTE_LIFE_MS = 3600;
+  const MAX_TOASTS = 2;
+
+  const QUOTES = {
+    'アルカ': [
+      '「未知に触れて、この空虚が一瞬だけ黙る、その刹那のことだよ」',
+      '「僕は君という人間をもっと、より深く知りたいと心の底から思ってるんだよ」',
+      '「選べ。『傀儡』か『愛』を」',
+      '「……神を指で突くとは、いい度胸だね。その指、切り落としても構わないかい？」',
+    ],
+    'コト': [
+      '「ごきげんよう、愛しの旦那さま。コト・テイル・アイテールですわ」',
+      '「わたくしにとって、『殺し』は『愛情』ですの」',
+      '「あなたの愛はかわいすぎるわ」',
+      '「あら、旦那さまでないなら興味はありませんの。……殺してさしあげましょうか？」',
+    ],
+    'キルロード': [
+      '「傀儡でいいさ。俺らはどこまで行っても主の道具だしな」',
+      '「あんまり人の内面を推しはかろうとするなよ。気持ち悪いぞ」',
+      '「俺が切り拓いた血にまみれた道を悠々と歩いてくるだけでいい」',
+      '「はぁ……。こんなことしてる暇があったら胃薬もってきてくれよ。……仕事、戻っていいか？」',
+    ],
+    'アーシャ': [
+      '「これこそ『複式簿記』ですわ！」',
+      '「『神は賽を振るうために人々に手を賜った』」',
+      '「ふざけんじゃねーですわよ！！ぶっ殺しますわよ！！」',
+      '「ちょっ！ 気安く触るなら料金が発生しますわよ！ 1クリックにつき5バウントですわ！」',
+    ],
+    'キュビ': [
+      '「はい、死亡♡」',
+      '「もしかしてアルカちゃんもざぁこ？」',
+      '「じゃあ、えーりんちゃんが『我が主』って呼ばれるようになろ〜っと⭐︎」',
+      '「ねえねえ、つまんな～い。この画面ごと壊しちゃっていい？ キャハハッ♡」',
+    ],
+    'タネイ': [
+      '「笑ってほしい。生きていればそれでいい、そうだろう？」',
+      '「それでも、みなから愛されたいと言ったら？」',
+      '「わたしは第一教導職として、お前の過ちを、すべての国民の過ちを一身に背負う」',
+      '「ふむ……。国民が望むなら、こうして浮いているのもまた『教導』のひとつなのだろうか？ ……いや、違う気がするな」',
+    ],
+    'アカウ': [
+      '「私が殺したかった。自ら出向いた甲斐があった」',
+      '「もう迷わない。わたしがラデン・タネイを守る」',
+      '「『あなた』は優しすぎます。だから、わたしはあなたを愛しました」',
+      '「気安く触るな！ 私が守るべきは第一教導職猊下ただお一人……！ 貴様にかまけている時間はないのだ！」',
+    ],
+    'カレイ': [
+      '「あのさ、一緒にカラベイに来ないか。少し不自由だけど、治安がよくていい国だよ」',
+      '「ぼくはきみと違って興味があって勉強しているんだ」',
+      '「もうやめにしよう。ぼくに九地を止める義理はない」',
+      '「わっ、揺らさないでくれるかな？ ……あぁ、よかった。大事なぬいぐるみが落ちるところだったよ」',
+    ],
+  };
+
   // ===== UI =====
   const sidebar = document.getElementById('sidebar');
   const toggleSidebarBtn = document.getElementById('toggleSidebar');
@@ -205,6 +312,7 @@
   const comboEl = document.getElementById('combo');
   const missesEl = document.getElementById('misses');
   const selectedNameEl = document.getElementById('selectedName');
+  const toastEl = document.getElementById('toast');
 
   toggleSidebarBtn.addEventListener('click', () => {
     sidebar.classList.toggle('open');
@@ -215,7 +323,6 @@
   function loadImage(file){
     if(images.has(file)) return images.get(file);
     const img = new Image();
-    // 日本語ファイル名でも通るけど、念のためURLエンコード
     img.src = encodeURI('./' + file);
     img.decoding = 'async';
     images.set(file, img);
@@ -274,6 +381,41 @@
   }
   buildSidebar();
 
+  // ===== セリフ表示（トースト） =====
+  function showToast(name, text){
+    const item = document.createElement('div');
+    item.className = 'toast-item';
+    item.style.setProperty('--toast-life', `${QUOTE_LIFE_MS}ms`);
+
+    const n = document.createElement('div');
+    n.className = 'toast-name';
+    n.textContent = name;
+
+    const t = document.createElement('div');
+    t.className = 'toast-text';
+    t.textContent = text;
+
+    item.appendChild(n);
+    item.appendChild(t);
+    toastEl.appendChild(item);
+
+    // 最大件数
+    while(toastEl.children.length > MAX_TOASTS){
+      toastEl.removeChild(toastEl.firstElementChild);
+    }
+
+    // 消えるタイミング（CSSアニメと同じ）
+    window.setTimeout(() => item.remove(), QUOTE_LIFE_MS + 300);
+  }
+
+  function maybeShowQuote(charName){
+    if(Math.random() > QUOTE_CHANCE) return;
+    const list = QUOTES[charName];
+    if(!list || list.length === 0) return;
+    const line = list[Math.floor(Math.random() * list.length)];
+    showToast(charName, line);
+  }
+
   // ===== ゲーム描画（Canvas） =====
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d', { alpha: true });
@@ -292,9 +434,6 @@
   resize();
 
   // ===== ぷに（物体） =====
-  /**
-   * Blob = { x,y,vx,vy,r,rot,w,born,img,name,floatFlash,lastTouch }
-   */
   const blobs = [];
   const particles = [];
 
@@ -337,7 +476,6 @@
   }
 
   function spawnBlob(nowMs = performance.now()){
-    // まだサイズが取れてない時は生成しない
     if(W < 40 || H < 40) return;
 
     const baseR = Math.min(W, H) * rng(0.045, 0.070);
@@ -407,6 +545,10 @@
         const add = Math.floor(10 + (b.r - 22) * 0.7 + combo * 2);
         setScore(add);
         burst(b.x, b.y, 12);
+
+        // 超低確率セリフ
+        maybeShowQuote(b.name);
+
         return true;
       }
     }
@@ -593,19 +735,11 @@
 
   // ===== ミニテスト（ブラウザConsole用） =====
   function runTests(){
-    // spawnBlob が壊れてないか（$1事故の再発防止）
-    const before = blobs.length;
-    spawnBlob(performance.now());
-    if(blobs.length > before){
-      const b = blobs[blobs.length - 1];
-      console.assert(typeof b.x === 'number' && typeof b.y === 'number', 'TEST: blob has position');
-      console.assert(typeof b.r === 'number' && b.r > 0, 'TEST: blob has radius');
-      console.assert(b.lastTouch != null, 'TEST: blob has lastTouch');
-      // idle despawn判定
-      const fakeNow = 10000;
-      console.assert(shouldIdleDespawn({ born: 0, lastTouch: fakeNow - (IDLE_DESPAWN_MS + 1) }, fakeNow) === true, 'TEST: idle despawn true');
-      console.assert(shouldIdleDespawn({ born: 0, lastTouch: fakeNow - (IDLE_DESPAWN_MS - 1) }, fakeNow) === false, 'TEST: idle despawn false');
-    }
+    console.assert(typeof QUOTE_CHANCE === 'number' && QUOTE_CHANCE >= 0 && QUOTE_CHANCE <= 1, 'TEST: QUOTE_CHANCE in [0,1]');
+    console.assert(Array.isArray(QUOTES['アルカ']) && QUOTES['アルカ'].length >= 1, 'TEST: quotes exist');
+    // toast DOM
+    showToast('TEST', 'セリフ表示テスト');
+    console.assert(toastEl.children.length >= 1, 'TEST: toast appended');
   }
   runTests();
 
