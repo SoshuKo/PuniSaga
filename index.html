@@ -292,6 +292,10 @@
   const blobs = [];
   const particles = [];
 
+  // 放置デスポーン（触ってないぷにが増えすぎないようにする）
+  const IDLE_DESPAWN_MS = 9000; // 9秒触られなかったら消える
+  const MAX_BLOBS = 70;         // 念のため上限（超えたら放置が長い順に消す）
+
   const rng = (a,b) => a + Math.random() * (b-a);
 
   let score = 0;
@@ -311,7 +315,7 @@
     missesEl.textContent = `MISS ${misses}`;
   }
 
-  function spawnBlob(){
+  function spawnBlob(now = performance.now()){
     const baseR = Math.min(W, H) * rng(0.045, 0.070);
     const r = Math.max(22, Math.min(64, baseR));
     const x = rng(r, W - r);
@@ -323,14 +327,16 @@
     const file = activeChar.file;
     const img = loadImage(file);
 
-    blobs.push({
-      x, y, vx, vy, r,
-      rot: rng(-0.4, 0.4),
-      w,
-      born: performance.now(),
-      img,
-      name: activeChar.name,
-      floatFlash: 0,
+    blobs.push({$1});
+
+    // ぷにが増えすぎない保険：上限を超えたら一番放置されてるぷにを消す
+    if (blobs.length > MAX_BLOBS) {
+      let worst = 0;
+      for (let i = 1; i < blobs.length; i++) {
+        if ((blobs[i].lastTouch ?? 0) < (blobs[worst].lastTouch ?? 0)) worst = i;
+      }
+      blobs.splice(worst, 1);
+    }
     });
   }
 
@@ -363,6 +369,7 @@
       const dx = px - b.x;
       const dy = py - b.y;
       if(dx*dx + dy*dy <= b.r*b.r){
+        b.lastTouch = performance.now();
         // 浮かす（上方向インパルス）
         b.vy = -Math.min(900, 420 + Math.abs(b.vy) * 0.7);
         b.vx += rng(-120, 120);
@@ -432,8 +439,8 @@
     spawnAcc += dt;
     while(spawnAcc >= spawnEvery){
       spawnAcc -= spawnEvery;
-      spawnBlob();
-      if(Math.random() < 0.18) spawnBlob();
+      spawnBlob(now);
+      if(Math.random() < 0.18) spawnBlob(now);
     }
 
     // 物理
@@ -443,6 +450,13 @@
 
     for(let i=blobs.length-1;i>=0;i--){
       const b = blobs[i];
+
+      // 放置されてるぷにはデスポーン（ミス扱いにしない）
+      if ((b.lastTouch ?? b.born ?? 0) && (now - (b.lastTouch ?? b.born)) > IDLE_DESPAWN_MS) {
+        burst(b.x, b.y, 8);
+        blobs.splice(i, 1);
+        continue;
+      }
       b.vy += g * dt;
       b.vx *= Math.pow(drag, dt*60);
       b.vy *= Math.pow(drag, dt*60);
