@@ -518,7 +518,10 @@
     const vy = rng(60, 140);
     const w = rng(-0.8, 0.8);
 
-    const file = activeChar.file;
+    let file = activeChar.file;
+    if (activeChar.name === 'パテイ' && Math.random() < 0.05) {
+    file = '実写パテイ.png';
+    }
     const img = loadImage(file);
 
     blobs.push({
